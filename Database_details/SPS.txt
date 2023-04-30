@@ -1,0 +1,93 @@
+create proc [dbo].[SP_MKS_API_ISRETURN_CHECK](@cardcode nvarchar(50) )
+as begin 
+
+SELECT T1.[CheckNum],T1.[DueDate], T0.[DocNum], T0.[CardCode],T0.[CardName],T0.[U_Cancel_Reason]  FROM ORCT T0  
+INNER JOIN RCT1 T1 ON T0.[DocEntry] = T1.[DocNum]
+WHERE T0.[Canceled]='Y' and T0.[U_Cancel_Reason] ='Return Cheques' and T1.[CheckNum] not in 
+( SELECT T0.U_RChq_No FROM ORCT T0  WHERE  T0.[U_IP_PayType] = 'Cheque Settlement' and 
+T0.CardCode =@cardcode ) and T0.CardCode= @cardcode
+
+end
+
+-------------------------------------------------------------------
+  
+ALTER proc [dbo].[SP_MKS_API_GETDETAILS_BYDOCENTRY](@DocEntry int )
+as begin 
+
+Select T0.[BaseLinNum] as 'BaseLinNum',T0.[BaseEntry] as 'BaseENTRY',T0.[ItemCode], T1.[DistNumber] as "BatchNum", T1.[ExpDate],
+ T1.[MnfDate] ,T0.[Quantity] as 'BatchQty',T1.[InDate] as 'Admission_Date',T0.[WhsCode],T0.[Quantity],
+ T2.[CountryOrg],T4.[CardName],T4.[BaseNum] as 'GRN_No' 
+from IBT1_LINK T0 
+inner join  OBTN T1 on T0.BatchNum = T1.DistNumber and T0.ItemCode = T1.ItemCode
+left outer join OITM T2 on T0.[ItemCode] = T2.ItemCode
+Left Outer join(Select ItemCode, BatchNum,CardName,BaseNum from IBT1_Link where BaseType = 20 ) T4 on T0.ItemCode =T4.ItemCode and T0.BatchNum =T4.BatchNum
+Where T0.[BaseEntry] = @DocEntry
+
+UNION ALL
+
+select T3.[LineNum] as 'BaseLinNum',T3.[DocEntry] as 'BaseENTRY',T0.[ItemCode], T1.[DistNumber] as "BatchNum", T1.[ExpDate], T1.[MnfDate] ,
+T0.[Quantity],T1.[InDate] as  'Admission_Date',T0.[WhsCode],T0.[Quantity] as 'BatchQty',T4.[CountryOrg],T5.[CardName],T5.[BaseNum] as 'GRN_No'
+from (select * from IBT1_LINK where basetype=15) T0 
+LEFT OUTER join  OBTN T1 on T0.BatchNum = T1.DistNumber and t0.ItemCode=t1.ItemCode
+left outer join (select * from DLN1 ) T2 ON T0.[BaseEntry] = t2.[DocEntry]  and T0.[BaseLinNum]= T2.[LineNum]
+LEFT OUTER JOIN INV1 T3 ON T2.[DocEntry]  = T3.[BaseEntry] and t2.LineNum=t3.BaseLine
+left outer join OITM T4 on T0.[ItemCode] = T4.ItemCode
+Left Outer join (Select ItemCode, BatchNum,CardName,BaseNum from IBT1_Link where BaseType = 20 ) T5 on T0.ItemCode =T4.ItemCode and T0.BatchNum =T5.BatchNum
+Where T3.[DocEntry] = @DocEntry
+
+
+
+
+
+end
+
+
+
+----------------------------------------------------------------------
+
+ 
+create  proc SP_MKS_API_GECANCELTDETAILS_BYDOCENTRY
+
+@DocEntry  nvarchar(30)  
+
+AS
+
+begin
+
+
+
+SELECT DISTINCT T0.DocEntry,T0.DocNum,T3.DocEntry as 'Canceled_Inv_Entry',T3.DocNum as 'Canceled_Inv_No'
+FROM (SELECT * FROM OINV WHERE CANCELED='C')T0 
+LEFT OUTER JOIN INV1 T1 ON T0.DocEntry = T1.DocEntry
+LEFT OUTER JOIN INV1 T2 ON T1.BaseEntry=T2.DocEntry AND T1.BaseLine=T2.LineNum
+LEFT OUTER JOIN (SELECT * FROM OINV WHERE CANCELED='Y') T3 ON T2.DocEntry=T3.DocEntry
+WHERE T0.DocEntry=@DocEntry
+
+
+
+ 
+
+end
+
+
+
+----------------------------------------------------------------------------
+
+
+alter proc SP_MKS_API_DIST_ACC_BAL(@cardcode nvarchar(50)
+)as begin 
+
+declare @PD int
+Select @PD =(Select Sum(T1.[CheckSum]) FROM ORCT T0  INNER JOIN RCT1 T1 ON T0.[DocEntry] = T1.[DocNum] 
+WHERE T0.[DocDate] <= T1.[DueDate]  and T1.[DueDate] >= getdate() and T0.[DocDate] < getdate() and 
+(T0.[CardCode] =@cardcode) and T0.[Canceled] = 'N')
+
+declare @tot nvarchar(10)
+  select @tot =(Select Distinct 'TRUE' as 'creditlimit' from OCRD T3 where (T3.Balance + @PD) > T3."CreditLine" and T3."CardCode" =
+ @cardcode AND T3.[U_A_BG] >0)
+
+ select case when @tot='TRUE' then 1 else 0 end as 'credit'
+
+
+ end
+ 

@@ -1,0 +1,56 @@
+ create procedure SP_INSERT_TEMP_CONSULTANT(
+  
+ _CardCode nvarchar(200), 
+ _Doc990_ref nvarchar(100), 
+ _ItemCode nvarchar(200),
+ _UnitPrice decimal
+ 
+  )
+as begin 
+
+ 
+ declare _NextDoc int;
+ 
+Select IFNULL(Count("DocNum"),0)+1 INTO _NextDoc FROM "TBL_CONSULTANT_H" ;
+
+
+  insert into  TBL_CONSULTANT_H  ("DocNum"   ,
+ "CardCode"  ,
+ "CreatedDate"  ,
+ "Doc990_ref"  ,
+ "IsUsed"  )
+ 
+ values (_NextDoc,_CardCode,CURRENT_DATE  ,_Doc990_ref,0);
+ 
+ Insert into "TBL_CONSULTANT_D" 
+("H_DocNum"   ,
+ "ItemCode"  ,
+ "UnitPrice"  ) values(_NextDoc,_ItemCode,_UnitPrice);
+
+ 
+
+end
+
+
+///////////////////////////////////////////***************************************/////////////////////
+ create procedure SP_SELECT_TEMP_CONSULTANT(
+   
+ _Doc990_ref nvarchar(100)  
+  )
+as begin 
+
+ select 
+  
+ A."CardCode"  ,
+  A."CreatedDate"  ,
+  A."Doc990_ref"  ,
+  A."IsUsed"   ,
+  B."ItemCode"  ,
+B."UnitPrice"
+ 
+ from TBL_CONSULTANT_H A inner join TBL_CONSULTANT_D B on A."DocNum"=B."H_DocNum"
+ where "Doc990_ref"=_Doc990_ref;
+  
+ 
+
+end
